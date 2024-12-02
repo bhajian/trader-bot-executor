@@ -22,7 +22,7 @@ K2_WALLET_URL = os.getenv("K2_WALLET_URL")
 
 # Replace with K2 user account info
 AUTO_TRADE = bool(os.getenv("AUTO_TRADE"))
-TRIAL = bool(os.getenv("TRIAL"))
+TRIAL = os.getenv("TRIAL", "False").lower() in ("true", "1", "yes")
 K2_USER_NAME = os.getenv("K2_USER_NAME")
 K2_PASSWORD = os.getenv("K2_PASSWORD")
 
@@ -33,8 +33,6 @@ RABBITMQ_USER=os.getenv("RABBITMQ_USER")
 RABBITMQ_PASSWORD=os.getenv("RABBITMQ_PASSWORD")
 SIGNAL_MQ_NAME=os.getenv("SIGNAL_MQ_NAME")
 RABBITMQ_URL= f"amqps://{RABBITMQ_USER}:{RABBITMQ_PASSWORD}@{RABBITMQ_HOST}/"
-
-print (RABBITMQ_URL)
 
 
 async def request(params):
@@ -104,10 +102,9 @@ async def k2_trade(signal):
         },
         "type": "POST"
     }
-    print (trial_obj)
-    trial_res = await request(spot_trade_obj)
-    print(trial_res)
 
+    trade_res = await request(spot_trade_obj)
+    print(trade_res)
 
 async def setup_rabbitmq():
     connection = await connect(RABBITMQ_URL)
