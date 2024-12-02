@@ -5,7 +5,7 @@ FROM python:3.9
 WORKDIR /app
 
 # Copy the application code and requirements into the container
-COPY signal_reader.py /app
+COPY k2_signal_trader.py /app
 COPY requirements.txt /app
 
 # Install dependencies from requirements.txt
@@ -43,4 +43,4 @@ ENV SPECIFIC_USER=""
 ENV PYTHONUNBUFFERED=1
 
 # Command to run the application
-CMD ["python", "signal_reader.py"]
+CMD ["python", "k2_signal_trader.py"]

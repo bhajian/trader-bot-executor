@@ -34,6 +34,8 @@ RABBITMQ_PASSWORD=os.getenv("RABBITMQ_PASSWORD")
 SIGNAL_MQ_NAME=os.getenv("SIGNAL_MQ_NAME")
 RABBITMQ_URL= f"amqps://{RABBITMQ_USER}:{RABBITMQ_PASSWORD}@{RABBITMQ_HOST}/"
 
+print (RABBITMQ_URL)
+
 
 async def request(params):
     try:
