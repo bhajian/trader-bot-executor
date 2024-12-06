@@ -8,9 +8,13 @@ from dotenv import load_dotenv
 import os
 import ssl
 import asyncio
-from aio_pika import connect, IncomingMessage
+from aio_pika import connect, IncomingMessage, exceptions as aio_pika_exceptions
+
 
 load_dotenv()
+
+MAX_RETRIES = 10
+INITIAL_RETRY_DELAY = 5
 
 toronto_tz = pytz.timezone("America/Toronto")
 ssl_context = ssl.create_default_context()
@@ -42,7 +46,6 @@ async def request(params):
             return response.json()
         elif params["type"] == "POST":
             print(params["url"])
-            print(params["data"])
             response = requests.post(params["url"], data=json.dumps(params["data"], indent=4), headers=params["headers"])
             return response.json()
     except requests.exceptions.Timeout:
@@ -52,6 +55,7 @@ async def request(params):
 
 
 async def k2_trade(signal):
+    print("trading as: " + K2_USER_NAME)
     login_obj = {
         "url": K2_LOGIN_URL,
         "headers": {
@@ -86,7 +90,6 @@ async def k2_trade(signal):
     wallet_res = await request(wallet_obj)
     amount = float(wallet_res["data"]["spotAccountBalance"]) * float(signal["account_portion"])
     time_type = int(signal["time_type"])
-    
     spot_trade_obj = {
         "url": K2_SPOT_URL,
         "headers": {
@@ -102,33 +105,55 @@ async def k2_trade(signal):
         },
         "type": "POST"
     }
-
     trade_res = await request(spot_trade_obj)
     print(trade_res)
 
+
 async def setup_rabbitmq():
-    connection = await connect(RABBITMQ_URL)
-    async with connection:
-        channel = await connection.channel()
-        # Declare the queue
-        queue = await channel.declare_queue(SIGNAL_MQ_NAME)
-        print(f"Waiting for messages from queue: {SIGNAL_MQ_NAME}. To exit, press CTRL+C.")
-        # Start consuming messages
-        await queue.consume(process_message)
-        # Keep the consumer running
-        await asyncio.Future()
-        
+    retry_count = 0
+    retry_delay = INITIAL_RETRY_DELAY
+    while True:
+        try:
+            print("Attempting to connect to RabbitMQ...")
+            connection = await connect(RABBITMQ_URL)
+            async with connection:
+                print("Connected to RabbitMQ")
+                channel = await connection.channel()
+                # Declare the queue
+                queue = await channel.declare_queue(SIGNAL_MQ_NAME)
+                print(f"Waiting for messages from queue: {SIGNAL_MQ_NAME}. To exit, press CTRL+C.")
+                # Start consuming messages
+                await queue.consume(process_message)
+                # Keep the consumer running
+                await asyncio.Future()  # Prevent the connection from closing
+        except aio_pika_exceptions.AMQPConnectionError:
+            print("Connection to RabbitMQ failed or was closed. Retrying...")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+        finally:
+            retry_count += 1
+            if retry_count > MAX_RETRIES:
+                print("Max retries reached. Exiting...")
+                break
+            print(f"Retrying connection in {retry_delay} seconds...")
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, 60)  # Exponential backoff with a maximum delay
+
 
 async def process_message(message: IncomingMessage):
-    data = json.loads(message.body.decode())
-    await k2_trade(data)
-    async with message.process():
-        print(f"Received message: {message.body.decode()}")
+    try:
+        data = json.loads(message.body.decode())
+        await k2_trade(data)  # Assuming this is a user-defined function
+        async with message.process():
+            print(f"Processed message: {message.body.decode()}")
+    except Exception as e:
+        print(f"Error processing message: {e}")
+        # Optionally handle the message differently or log for debugging
 
 
 async def main():
     await setup_rabbitmq()
-
+    
 if __name__ == "__main__":
     try:
         asyncio.run(main())

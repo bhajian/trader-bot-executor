@@ -1,4 +1,6 @@
 .env
+.venv
+.vscode
 bot_session.session
 phone_session.session
 telegram-keys-api.txt
@@ -8,3 +10,4 @@ env
 mytest.py
 ca.crt
 phone_session.session-journal
+deployement.yaml
